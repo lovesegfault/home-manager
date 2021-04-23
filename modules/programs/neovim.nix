@@ -43,14 +43,15 @@ let
       "";
 
   moduleConfigure = {
-    packages.home-manager = {
-      start = filter (f: f != null) (map
-        (x: if x ? plugin && x.optional == true then null else (x.plugin or x))
-        cfg.plugins);
-      opt = filter (f: f != null)
-        (map (x: if x ? plugin && x.optional == true then x.plugin else null)
-          cfg.plugins);
-    };
+    beforePlugins = "";
+    # packages.home-manager = {
+    #   start = filter (f: f != null) (map
+    #     (x: if x ? plugin && x.optional == true then null else (x.plugin or x))
+    #     cfg.plugins);
+    #   opt = filter (f: f != null)
+    #     (map (x: if x ? plugin && x.optional == true then x.plugin else null)
+    #       cfg.plugins);
+    # };
     customRC = cfg.extraConfig
       + pkgs.lib.concatMapStrings pluginConfig cfg.plugins;
   };
@@ -222,10 +223,13 @@ in {
   };
 
   config = let
+    mergedConfigure = cfg.configure // moduleConfigure;
     neovimConfig = pkgs.neovimUtils.makeNeovimConfig {
       inherit (cfg)
-        extraPython3Packages withPython3 withNodeJs withRuby viAlias vimAlias;
-      configure = cfg.configure // moduleConfigure;
+        extraPython3Packages withPython3 extraPythonPackages withPython
+        withNodeJs withRuby viAlias vimAlias;
+      configure = mergedConfigure;
+      customRC = cfg.extraConfig;
       plugins = cfg.plugins;
     };
 
@@ -241,11 +245,14 @@ in {
 
     home.packages = [ cfg.finalPackage ];
 
-    xdg.configFile."nvim/init.vim".text = neovimConfig.neovimRcContent;
+    xdg.configFile = mkIf (neovimConfig.neovimRcContent != "") {
+      "nvim/init.vim".text = neovimConfig.neovimRcContent;
+    };
     programs.neovim.finalPackage = pkgs.wrapNeovimUnstable cfg.package
       (neovimConfig // {
         wrapperArgs = (lib.escapeShellArgs neovimConfig.wrapperArgs) + " "
           + extraMakeWrapperArgs;
+        wrapRc = false;
       });
 
     programs.bash.shellAliases = mkIf cfg.vimdiffAlias { vimdiff = "nvim -d"; };
