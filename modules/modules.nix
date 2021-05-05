@@ -226,19 +226,26 @@ let
   modules = map (getAttr "file") (filter (getAttr "condition") allModules);
 
   pkgsModule = { config, ... }: {
-    config = {
-      _module.args.baseModules = modules;
-      _module.args.pkgsPath = lib.mkDefault (
-        if versionAtLeast config.home.stateVersion "20.09" then
-          pkgs.path
-        else
-          <nixpkgs>);
-      _module.args.pkgs = lib.mkDefault pkgs;
-      _module.check = check;
-      lib = lib.hm;
-    } // optionalAttrs useNixpkgsModule {
-      nixpkgs.system = mkDefault pkgs.system;
-    };
+    config = mkMerge [
+      {
+        _module.args.baseModules = modules;
+        _module.args.pkgs = mkDefault pkgs;
+        _module.check = check;
+        lib = lib.hm;
+      }
+
+      (mkIf useNixpkgsModule {
+        nixpkgs.system = mkDefault pkgs.system;
+      })
+
+      (mkIf (versionAtLeast config.home.stateVersion "20.09") {
+        _module.args.pkgsPath = mkDefault pkgs.path;
+      })
+
+      (mkIf (!versionAtLeast config.home.stateVersion "20.09") {
+        _module.args.pkgsPath = mkDefault <nixpkgs>;
+      })
+    ];
   };
 
 in
